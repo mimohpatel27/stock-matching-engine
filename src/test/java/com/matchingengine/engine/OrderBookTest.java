@@ -24,8 +24,19 @@ class OrderBookTest {
     }
 
     private Order order(OrderSide side, String price, int qty) {
-        Order o = new Order("TCS", side, new BigDecimal(price), qty);
+        return order(side, price, qty, "trader-" + side);
+    }
+
+    private Order order(OrderSide side, String price, int qty, String traderId) {
+        Order o = new Order("TCS", traderId, side, new BigDecimal(price), qty);
         o.setId(++seq); // simulate DB-assigned id
+        o.setSequence(seq);
+        return o;
+    }
+
+    private Order marketOrder(OrderSide side, int qty, String traderId) {
+        Order o = new Order("TCS", traderId, side, com.matchingengine.model.OrderType.MARKET, null, qty);
+        o.setId(++seq);
         o.setSequence(seq);
         return o;
     }
@@ -129,5 +140,119 @@ class OrderBookTest {
     @Test
     void cancelNonexistentOrderReturnsFalse() {
         assertFalse(book.cancel(999L));
+    }
+
+    @Test
+    void tradeRecordsCorrectTraderIdsOnBothSides() {
+        Order sell = order(OrderSide.SELL, "490", 100, "trader-alice");
+        book.submit(sell);
+
+        Order buy = order(OrderSide.BUY, "500", 100, "trader-bob");
+        List<Trade> trades = book.submit(buy);
+
+        assertEquals(1, trades.size());
+        assertEquals("trader-bob", trades.get(0).getBuyTraderId());
+        assertEquals("trader-alice", trades.get(0).getSellTraderId());
+    }
+
+    @Test
+    void selfTradeIsSkippedButOrderStillRestsInBook() {
+        // Alice has a resting sell. Alice's own buy order should NOT match
+        // against it, even though the price crosses.
+        Order aliceSell = order(OrderSide.SELL, "490", 100, "alice");
+        book.submit(aliceSell);
+
+        Order aliceBuy = order(OrderSide.BUY, "500", 100, "alice");
+        List<Trade> trades = book.submit(aliceBuy);
+
+        assertTrue(trades.isEmpty(), "same-trader orders must not match each other");
+        // Alice's sell should still be resting in the book, untouched.
+        assertEquals(1, book.sellSnapshot(10).size());
+        assertEquals(0, aliceSell.getFilledQuantity());
+        // Alice's buy should now be resting too, since nothing else matched it.
+        assertEquals(1, book.buySnapshot(10).size());
+    }
+
+    @Test
+    void selfTradeSkipSkipsOverToMatchNextBestPrice() {
+        // Alice has a resting sell at 490 (best price).
+        // Bob has a resting sell at 495 (worse price).
+        // Alice's incoming buy should skip her own 490 sell and match Bob's 495 instead.
+        Order aliceSell = order(OrderSide.SELL, "490", 50, "alice");
+        book.submit(aliceSell);
+        Order bobSell = order(OrderSide.SELL, "495", 50, "bob");
+        book.submit(bobSell);
+
+        Order aliceBuy = order(OrderSide.BUY, "500", 50, "alice");
+        List<Trade> trades = book.submit(aliceBuy);
+
+        assertEquals(1, trades.size());
+        assertEquals(bobSell.getId(), trades.get(0).getSellOrderId(), "should skip alice's own order and match bob's instead");
+        // Alice's original sell should still be resting, untouched.
+        assertEquals(0, aliceSell.getFilledQuantity());
+    }
+
+    @Test
+    void marketBuyMatchesAtRestingSellPriceIgnoringOwnPrice() {
+        Order sell = order(OrderSide.SELL, "490", 100, "alice");
+        book.submit(sell);
+
+        Order marketBuy = marketOrder(OrderSide.BUY, 100, "bob");
+        List<Trade> trades = book.submit(marketBuy);
+
+        assertEquals(1, trades.size());
+        assertEquals(0, trades.get(0).getPrice().compareTo(new BigDecimal("490")));
+        assertEquals(OrderStatus.FILLED, marketBuy.getStatus());
+    }
+
+    @Test
+    void marketOrderSweepsMultiplePriceLevelsIgnoringPrice() {
+        book.submit(order(OrderSide.SELL, "490", 30, "alice"));
+        book.submit(order(OrderSide.SELL, "520", 30, "alice"));
+        book.submit(order(OrderSide.SELL, "600", 30, "alice"));
+
+        Order marketBuy = marketOrder(OrderSide.BUY, 90, "bob");
+        List<Trade> trades = book.submit(marketBuy);
+
+        assertEquals(3, trades.size());
+        assertEquals(90, trades.stream().mapToInt(Trade::getQuantity).sum());
+        assertEquals(OrderStatus.FILLED, marketBuy.getStatus());
+    }
+
+    @Test
+    void unfilledMarketOrderIsCancelledNotRested() {
+        Order marketBuy = marketOrder(OrderSide.BUY, 100, "bob");
+        List<Trade> trades = book.submit(marketBuy);
+
+        assertTrue(trades.isEmpty());
+        assertEquals(OrderStatus.CANCELLED, marketBuy.getStatus());
+        assertEquals(0, book.buySnapshot(10).size());
+    }
+
+    @Test
+    void partiallyFilledMarketOrderDoesNotRestRemainder() {
+        book.submit(order(OrderSide.SELL, "490", 40, "alice"));
+
+        Order marketBuy = marketOrder(OrderSide.BUY, 100, "bob");
+        List<Trade> trades = book.submit(marketBuy);
+
+        assertEquals(1, trades.size());
+        assertEquals(40, trades.get(0).getQuantity());
+        assertEquals(OrderStatus.PARTIALLY_FILLED, marketBuy.getStatus());
+        assertEquals(60, marketBuy.remainingQuantity());
+        assertEquals(0, book.buySnapshot(10).size());
+    }
+
+    @Test
+    void marketOrderStillRespectsSelfTradePrevention() {
+        Order aliceSell = order(OrderSide.SELL, "490", 100, "alice");
+        book.submit(aliceSell);
+
+        Order aliceMarketBuy = marketOrder(OrderSide.BUY, 100, "alice");
+        List<Trade> trades = book.submit(aliceMarketBuy);
+
+        assertTrue(trades.isEmpty(), "market order must not self-trade either");
+        assertEquals(OrderStatus.CANCELLED, aliceMarketBuy.getStatus());
+        assertEquals(1, book.sellSnapshot(10).size());
     }
 }

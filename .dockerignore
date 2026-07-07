@@ -1,5 +1,7 @@
 target/
-*.class
+.git/
+.gitignore
+*.md
 .idea/
 *.iml
 .vscode/

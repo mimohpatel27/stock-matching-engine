@@ -16,11 +16,20 @@ public class Order {
     @Column(nullable = false)
     private String symbol;
 
+    @Column(nullable = false)
+    private String traderId;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private OrderSide side;
 
-    @Column(nullable = false, precision = 19, scale = 4)
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private OrderType orderType = OrderType.LIMIT;
+
+    // Nullable because MARKET orders don't specify a price — they match at
+    // whatever price is available in the book.
+    @Column(precision = 19, scale = 4)
     private BigDecimal price;
 
     @Column(nullable = false)
@@ -44,9 +53,15 @@ public class Order {
     public Order() {
     }
 
-    public Order(String symbol, OrderSide side, BigDecimal price, int quantity) {
+    public Order(String symbol, String traderId, OrderSide side, BigDecimal price, int quantity) {
+        this(symbol, traderId, side, OrderType.LIMIT, price, quantity);
+    }
+
+    public Order(String symbol, String traderId, OrderSide side, OrderType orderType, BigDecimal price, int quantity) {
         this.symbol = symbol;
+        this.traderId = traderId;
         this.side = side;
+        this.orderType = orderType;
         this.price = price;
         this.quantity = quantity;
     }
@@ -77,12 +92,28 @@ public class Order {
         this.symbol = symbol;
     }
 
+    public String getTraderId() {
+        return traderId;
+    }
+
+    public void setTraderId(String traderId) {
+        this.traderId = traderId;
+    }
+
     public OrderSide getSide() {
         return side;
     }
 
     public void setSide(OrderSide side) {
         this.side = side;
+    }
+
+    public OrderType getOrderType() {
+        return orderType;
+    }
+
+    public void setOrderType(OrderType orderType) {
+        this.orderType = orderType;
     }
 
     public BigDecimal getPrice() {

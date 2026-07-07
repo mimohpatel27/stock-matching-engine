@@ -3,6 +3,7 @@ package com.matchingengine.engine;
 import com.matchingengine.model.Order;
 import com.matchingengine.model.OrderSide;
 import com.matchingengine.model.OrderStatus;
+import com.matchingengine.model.OrderType;
 import com.matchingengine.model.Trade;
 
 import java.util.ArrayList;
@@ -65,15 +66,27 @@ public class OrderBook {
 
         if (incoming.getSide() == OrderSide.BUY) {
             matchBuy(incoming, trades);
-            if (incoming.remainingQuantity() > 0) {
-                buyHeap.offer(incoming);
-                openOrdersById.put(incoming.getId(), incoming);
-            }
         } else {
             matchSell(incoming, trades);
-            if (incoming.remainingQuantity() > 0) {
-                sellHeap.offer(incoming);
+        }
+
+        if (incoming.remainingQuantity() > 0) {
+            if (incoming.getOrderType() == OrderType.LIMIT) {
+                if (incoming.getSide() == OrderSide.BUY) {
+                    buyHeap.offer(incoming);
+                } else {
+                    sellHeap.offer(incoming);
+                }
                 openOrdersById.put(incoming.getId(), incoming);
+            } else {
+                // MARKET orders are Immediate-Or-Cancel: whatever doesn't
+                // fill immediately is cancelled, never rested in the book.
+                if (incoming.getFilledQuantity() == 0) {
+                    incoming.setStatus(OrderStatus.CANCELLED);
+                }
+                // If partially filled, applyFill() already set the status to
+                // PARTIALLY_FILLED, which correctly signals "not fully done"
+                // without implying it's still resting.
             }
         }
 
@@ -81,38 +94,62 @@ public class OrderBook {
     }
 
     private void matchBuy(Order buyOrder, List<Trade> trades) {
-        // Keep matching while the incoming buy order still wants quantity
-        // AND the best resting sell price is <= the buy price.
+        // Orders skipped because they belong to the same trader as the
+        // incoming order. They stay resting in the book, so we set them
+        // aside here and re-offer them back into the heap once the loop
+        // finishes (whether it finishes normally or via a break).
+        List<Order> skippedSameTrader = new ArrayList<>();
+
         while (buyOrder.remainingQuantity() > 0
                 && !sellHeap.isEmpty()
-                && sellHeap.peek().getPrice().compareTo(buyOrder.getPrice()) <= 0) {
+                && (buyOrder.getOrderType() == OrderType.MARKET
+                    || sellHeap.peek().getPrice().compareTo(buyOrder.getPrice()) <= 0)) {
 
             Order bestSell = sellHeap.poll();
+
+            // Self-trade prevention: a trader cannot match against their own
+            // resting order. Skip it and keep trying the next best price.
+            if (bestSell.getTraderId().equals(buyOrder.getTraderId())) {
+                skippedSameTrader.add(bestSell);
+                continue;
+            }
+
             openOrdersById.remove(bestSell.getId());
 
             int tradeQty = Math.min(buyOrder.remainingQuantity(), bestSell.remainingQuantity());
-            // Execution price convention: the resting order's price (price-time priority standard)
             var tradePrice = bestSell.getPrice();
 
             applyFill(buyOrder, tradeQty);
             applyFill(bestSell, tradeQty);
 
-            trades.add(new Trade(symbol, buyOrder.getId(), bestSell.getId(), tradePrice, tradeQty));
+            trades.add(new Trade(symbol, buyOrder.getId(), bestSell.getId(),
+                    buyOrder.getTraderId(), bestSell.getTraderId(), tradePrice, tradeQty));
 
-            // If the resting sell order still has quantity left, put it back
             if (bestSell.remainingQuantity() > 0) {
                 sellHeap.offer(bestSell);
                 openOrdersById.put(bestSell.getId(), bestSell);
             }
         }
+
+        // Put skipped same-trader orders back so they keep resting normally.
+        sellHeap.addAll(skippedSameTrader);
     }
 
     private void matchSell(Order sellOrder, List<Trade> trades) {
+        List<Order> skippedSameTrader = new ArrayList<>();
+
         while (sellOrder.remainingQuantity() > 0
                 && !buyHeap.isEmpty()
-                && buyHeap.peek().getPrice().compareTo(sellOrder.getPrice()) >= 0) {
+                && (sellOrder.getOrderType() == OrderType.MARKET
+                    || buyHeap.peek().getPrice().compareTo(sellOrder.getPrice()) >= 0)) {
 
             Order bestBuy = buyHeap.poll();
+
+            if (bestBuy.getTraderId().equals(sellOrder.getTraderId())) {
+                skippedSameTrader.add(bestBuy);
+                continue;
+            }
+
             openOrdersById.remove(bestBuy.getId());
 
             int tradeQty = Math.min(sellOrder.remainingQuantity(), bestBuy.remainingQuantity());
@@ -121,13 +158,16 @@ public class OrderBook {
             applyFill(sellOrder, tradeQty);
             applyFill(bestBuy, tradeQty);
 
-            trades.add(new Trade(symbol, bestBuy.getId(), sellOrder.getId(), tradePrice, tradeQty));
+            trades.add(new Trade(symbol, bestBuy.getId(), sellOrder.getId(),
+                    bestBuy.getTraderId(), sellOrder.getTraderId(), tradePrice, tradeQty));
 
             if (bestBuy.remainingQuantity() > 0) {
                 buyHeap.offer(bestBuy);
                 openOrdersById.put(bestBuy.getId(), bestBuy);
             }
         }
+
+        buyHeap.addAll(skippedSameTrader);
     }
 
     private void applyFill(Order order, int qty) {

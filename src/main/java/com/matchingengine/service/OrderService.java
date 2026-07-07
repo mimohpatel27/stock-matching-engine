@@ -6,12 +6,14 @@ import com.matchingengine.engine.MatchingEngine;
 import com.matchingengine.exception.OrderNotFoundException;
 import com.matchingengine.model.Order;
 import com.matchingengine.model.OrderStatus;
+import com.matchingengine.model.OrderType;
 import com.matchingengine.model.Trade;
 import com.matchingengine.repository.OrderRepository;
 import com.matchingengine.repository.TradeRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 @Service
@@ -35,10 +37,21 @@ public class OrderService {
      */
     @Transactional
     public OrderResponse placeOrder(OrderRequest request) {
+        OrderType orderType = request.getOrderType() == null ? OrderType.LIMIT : request.getOrderType();
+
+        if (orderType == OrderType.LIMIT && request.getPrice() == null) {
+            throw new IllegalArgumentException("price is required for LIMIT orders");
+        }
+        // MARKET orders ignore any price the client might have sent — they
+        // match at whatever price is available in the book.
+        BigDecimal effectivePrice = orderType == OrderType.MARKET ? null : request.getPrice();
+
         Order order = new Order(
                 request.getSymbol().toUpperCase(),
+                request.getTraderId(),
                 request.getSide(),
-                request.getPrice(),
+                orderType,
+                effectivePrice,
                 request.getQuantity()
         );
         order = orderRepository.save(order); // gets an ID

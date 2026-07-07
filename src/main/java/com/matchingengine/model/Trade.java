@@ -22,6 +22,12 @@ public class Trade {
     @Column(nullable = false)
     private Long sellOrderId;
 
+    @Column(nullable = false)
+    private String buyTraderId;
+
+    @Column(nullable = false)
+    private String sellTraderId;
+
     @Column(nullable = false, precision = 19, scale = 4)
     private BigDecimal price;
 
@@ -34,10 +40,14 @@ public class Trade {
     public Trade() {
     }
 
-    public Trade(String symbol, Long buyOrderId, Long sellOrderId, BigDecimal price, int quantity) {
+    public Trade(String symbol, Long buyOrderId, Long sellOrderId,
+                 String buyTraderId, String sellTraderId,
+                 BigDecimal price, int quantity) {
         this.symbol = symbol;
         this.buyOrderId = buyOrderId;
         this.sellOrderId = sellOrderId;
+        this.buyTraderId = buyTraderId;
+        this.sellTraderId = sellTraderId;
         this.price = price;
         this.quantity = quantity;
     }
@@ -72,6 +82,22 @@ public class Trade {
 
     public void setSellOrderId(Long sellOrderId) {
         this.sellOrderId = sellOrderId;
+    }
+
+    public String getBuyTraderId() {
+        return buyTraderId;
+    }
+
+    public void setBuyTraderId(String buyTraderId) {
+        this.buyTraderId = buyTraderId;
+    }
+
+    public String getSellTraderId() {
+        return sellTraderId;
+    }
+
+    public void setSellTraderId(String sellTraderId) {
+        this.sellTraderId = sellTraderId;
     }
 
     public BigDecimal getPrice() {

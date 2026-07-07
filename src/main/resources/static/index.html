@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Matching Engine — Terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0B0E14;
+    --panel: #12161F;
+    --panel-2: #171C27;
+    --border: #232838;
+    --text: #E8E6E1;
+    --muted: #6B7280;
+    --amber: #FFB000;
+    --amber-dim: #8A6300;
+    --buy: #3DDC84;
+    --sell: #FF5C5C;
+    --buy-dim: rgba(61, 220, 132, 0.12);
+    --sell-dim: rgba(255, 92, 92, 0.12);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 24px 20px 60px;
+  }
+
+  header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 16px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+
+  .brand .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--amber);
+    display: inline-block;
+    box-shadow: 0 0 8px var(--amber);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .brand h1 {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin: 0;
+    color: var(--text);
+  }
+
+  .brand .sub {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  .symbol-picker {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .symbol-picker label {
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  select, input {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 13px;
+    padding: 7px 10px;
+    border-radius: 3px;
+  }
+
+  select:focus, input:focus {
+    outline: none;
+    border-color: var(--amber-dim);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 300px 1fr 320px;
+    gap: 20px;
+  }
+
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 18px;
+  }
+
+  .panel-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+    margin: 0 0 14px 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .field {
+    margin-bottom: 12px;
+  }
+
+  .field label {
+    display: block;
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 5px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .field input, .field select {
+    width: 100%;
+  }
+
+  .side-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+
+  .side-toggle button {
+    padding: 9px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    background: var(--panel-2);
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .side-toggle button.active.buy {
+    background: var(--buy-dim);
+    border-color: var(--buy);
+    color: var(--buy);
+  }
+
+  .side-toggle button.active.sell {
+    background: var(--sell-dim);
+    border-color: var(--sell);
+    color: var(--sell);
+  }
+
+  .type-toggle {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+    margin-bottom: 14px;
+  }
+
+  .type-toggle button {
+    padding: 6px;
+    border-radius: 3px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: 11px;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+  }
+
+  .type-toggle button.active {
+    border-color: var(--amber-dim);
+    color: var(--amber);
+  }
+
+  .submit-btn {
+    width: 100%;
+    padding: 11px;
+    border-radius: 3px;
+    border: none;
+    background: var(--amber);
+    color: #1a1200;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    text-transform: uppercase;
+    margin-top: 4px;
+  }
+
+  .submit-btn:hover { filter: brightness(1.1); }
+  .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .msg {
+    margin-top: 10px;
+    font-size: 11.5px;
+    padding: 8px 10px;
+    border-radius: 3px;
+    display: none;
+    line-height: 1.4;
+  }
+  .msg.show { display: block; }
+  .msg.ok { background: var(--buy-dim); color: var(--buy); }
+  .msg.err { background: var(--sell-dim); color: var(--sell); }
+
+  /* Order book depth panel */
+  .book-header {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 8px;
+    padding: 0 2px;
+  }
+
+  .book-cols {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    min-height: 220px;
+  }
+
+  .book-col-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+  }
+  .book-col-title.bid { color: var(--buy); }
+  .book-col-title.ask { color: var(--sell); }
+
+  .level-row {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 8px;
+    font-size: 12.5px;
+    margin-bottom: 3px;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .level-bar {
+    position: absolute;
+    top: 0; bottom: 0;
+    z-index: 0;
+  }
+
+  .level-row.bid .level-bar { right: 0; background: var(--buy-dim); }
+  .level-row.ask .level-bar { left: 0; background: var(--sell-dim); }
+
+  .level-price, .level-qty {
+    position: relative;
+    z-index: 1;
+  }
+  .level-row.bid .level-price { color: var(--buy); font-weight: 600; }
+  .level-row.ask .level-price { color: var(--sell); font-weight: 600; }
+  .level-qty { color: var(--muted); }
+
+  .empty-book {
+    color: var(--muted);
+    font-size: 12px;
+    padding: 20px 0;
+    text-align: center;
+    font-style: normal;
+  }
+
+  .spread-info {
+    text-align: center;
+    padding: 10px 0;
+    margin-top: 8px;
+    border-top: 1px dashed var(--border);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .spread-info b { color: var(--amber); }
+
+  /* Trade tape */
+  .tape {
+    max-height: 480px;
+    overflow-y: auto;
+  }
+
+  .tape::-webkit-scrollbar { width: 6px; }
+  .tape::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+  .trade-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    animation: flash-in 0.4s ease;
+  }
+  .trade-row:last-child { border-bottom: none; }
+
+  @keyframes flash-in {
+    from { background: rgba(255, 176, 0, 0.15); }
+    to { background: transparent; }
+  }
+
+  .trade-price { font-weight: 700; color: var(--amber); }
+  .trade-meta { color: var(--muted); font-size: 10.5px; }
+  .trade-traders { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+  .trade-traders .buyer { color: var(--buy); }
+  .trade-traders .seller { color: var(--sell); }
+
+  .status-badge {
+    display: inline-block;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 2px 6px;
+    border-radius: 2px;
+    text-transform: uppercase;
+  }
+  .status-FILLED { background: var(--buy-dim); color: var(--buy); }
+  .status-PARTIALLY_FILLED { background: rgba(255, 176, 0, 0.12); color: var(--amber); }
+  .status-OPEN { background: rgba(107, 114, 128, 0.15); color: var(--muted); }
+  .status-CANCELLED { background: var(--sell-dim); color: var(--sell); }
+
+  .footer-note {
+    margin-top: 28px;
+    color: var(--muted);
+    font-size: 10.5px;
+    text-align: center;
+    letter-spacing: 0.02em;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <span class="dot"></span>
+      <h1>Matching Engine</h1>
+      <span class="sub">// heap-based price-time priority</span>
+    </div>
+    <div class="symbol-picker">
+      <label for="symbolInput">Symbol</label>
+      <input id="symbolInput" value="TCS" style="width:90px; text-transform:uppercase;" maxlength="12">
+    </div>
+  </header>
+
+  <div class="grid">
+
+    <!-- Order entry -->
+    <div class="panel">
+      <p class="panel-title">Place Order</p>
+
+      <div class="side-toggle">
+        <button type="button" id="sideBuyBtn" class="active buy">Buy</button>
+        <button type="button" id="sideSellBtn" class="sell">Sell</button>
+      </div>
+
+      <div class="type-toggle">
+        <button type="button" id="typeLimitBtn" class="active">Limit</button>
+        <button type="button" id="typeMarketBtn">Market</button>
+      </div>
+
+      <div class="field">
+        <label for="traderInput">Trader ID</label>
+        <input id="traderInput" placeholder="e.g. alice" value="alice">
+      </div>
+
+      <div class="field" id="priceField">
+        <label for="priceInput">Price</label>
+        <input id="priceInput" type="number" step="0.01" placeholder="500.00">
+      </div>
+
+      <div class="field">
+        <label for="qtyInput">Quantity</label>
+        <input id="qtyInput" type="number" step="1" placeholder="100" value="100">
+      </div>
+
+      <button class="submit-btn" id="submitBtn">Submit Order</button>
+      <div class="msg" id="msgBox"></div>
+    </div>
+
+    <!-- Order book depth -->
+    <div class="panel">
+      <p class="panel-title">
+        <span id="bookTitle">Order Book — TCS</span>
+        <span style="color: var(--muted); font-weight: 400; font-size: 10px;">auto-refreshing</span>
+      </p>
+      <div class="book-header">
+        <span>Bids</span>
+        <span style="text-align:right;">Asks</span>
+      </div>
+      <div class="book-cols">
+        <div>
+          <div class="book-col-title bid">▲ Buyers</div>
+          <div id="bidLevels"></div>
+        </div>
+        <div>
+          <div class="book-col-title ask" style="text-align:right;">Sellers ▼</div>
+          <div id="askLevels"></div>
+        </div>
+      </div>
+      <div class="spread-info" id="spreadInfo">—</div>
+    </div>
+
+    <!-- Trade tape -->
+    <div class="panel">
+      <p class="panel-title">
+        Trade Tape
+        <span style="color: var(--muted); font-weight: 400; font-size: 10px;" id="tradeCount">0 trades</span>
+      </p>
+      <div class="tape" id="tradeTape">
+        <div class="empty-book">No trades yet</div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="footer-note">
+    Data refreshes every 2s from <code>/api/orderbook/{symbol}</code> and <code>/api/trades/{symbol}</code>
+  </div>
+
+</div>
+
+<script>
+  const API = '';
+  let currentSide = 'BUY';
+  let currentType = 'LIMIT';
+  let currentSymbol = 'TCS';
+  let knownTradeIds = new Set();
+
+  const symbolInput = document.getElementById('symbolInput');
+  const sideBuyBtn = document.getElementById('sideBuyBtn');
+  const sideSellBtn = document.getElementById('sideSellBtn');
+  const typeLimitBtn = document.getElementById('typeLimitBtn');
+  const typeMarketBtn = document.getElementById('typeMarketBtn');
+  const priceField = document.getElementById('priceField');
+  const priceInput = document.getElementById('priceInput');
+  const qtyInput = document.getElementById('qtyInput');
+  const traderInput = document.getElementById('traderInput');
+  const submitBtn = document.getElementById('submitBtn');
+  const msgBox = document.getElementById('msgBox');
+  const bidLevels = document.getElementById('bidLevels');
+  const askLevels = document.getElementById('askLevels');
+  const spreadInfo = document.getElementById('spreadInfo');
+  const tradeTape = document.getElementById('tradeTape');
+  const tradeCount = document.getElementById('tradeCount');
+  const bookTitle = document.getElementById('bookTitle');
+
+  sideBuyBtn.onclick = () => setSide('BUY');
+  sideSellBtn.onclick = () => setSide('SELL');
+  typeLimitBtn.onclick = () => setType('LIMIT');
+  typeMarketBtn.onclick = () => setType('MARKET');
+
+  function setSide(side) {
+    currentSide = side;
+    sideBuyBtn.classList.toggle('active', side === 'BUY');
+    sideSellBtn.classList.toggle('active', side === 'SELL');
+  }
+
+  function setType(type) {
+    currentType = type;
+    typeLimitBtn.classList.toggle('active', type === 'LIMIT');
+    typeMarketBtn.classList.toggle('active', type === 'MARKET');
+    priceField.style.display = type === 'MARKET' ? 'none' : 'block';
+  }
+
+  symbolInput.addEventListener('change', () => {
+    currentSymbol = symbolInput.value.trim().toUpperCase() || 'TCS';
+    symbolInput.value = currentSymbol;
+    bookTitle.textContent = 'Order Book — ' + currentSymbol;
+    knownTradeIds = new Set();
+    tradeTape.innerHTML = '<div class="empty-book">No trades yet</div>';
+    refreshAll();
+  });
+
+  submitBtn.onclick = async () => {
+    const traderId = traderInput.value.trim();
+    const qty = parseInt(qtyInput.value, 10);
+    const price = priceInput.value ? parseFloat(priceInput.value) : null;
+
+    if (!traderId) return showMsg('Trader ID is required.', false);
+    if (!qty || qty < 1) return showMsg('Quantity must be at least 1.', false);
+    if (currentType === 'LIMIT' && (!price || price <= 0)) return showMsg('Price is required for LIMIT orders.', false);
+
+    const body = {
+      symbol: currentSymbol,
+      traderId: traderId,
+      side: currentSide,
+      orderType: currentType,
+      quantity: qty,
+    };
+    if (currentType === 'LIMIT') body.price = price;
+
+    submitBtn.disabled = true;
+    try {
+      const res = await fetch(API + '/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        showMsg(data.message || 'Order rejected.', false);
+      } else {
+        const filled = data.trades && data.trades.length > 0;
+        const statusText = data.status.replace('_', ' ');
+        showMsg(
+          `Order #${data.orderId} → ${statusText}` +
+          (filled ? ` · matched ${data.trades.length} trade(s)` : ''),
+          true
+        );
+      }
+      refreshAll();
+    } catch (e) {
+      showMsg('Could not reach the server. Is it running on :8080?', false);
+    } finally {
+      submitBtn.disabled = false;
+    }
+  };
+
+  function showMsg(text, ok) {
+    msgBox.textContent = text;
+    msgBox.className = 'msg show ' + (ok ? 'ok' : 'err');
+    setTimeout(() => msgBox.classList.remove('show'), 4000);
+  }
+
+  function renderLevels(container, levels, side) {
+    container.innerHTML = '';
+    if (!levels || levels.length === 0) {
+      container.innerHTML = '<div class="empty-book">No orders</div>';
+      return;
+    }
+    const maxQty = Math.max(...levels.map(l => l.totalQuantity));
+    levels.forEach(l => {
+      const pct = Math.round((l.totalQuantity / maxQty) * 100);
+      const row = document.createElement('div');
+      row.className = 'level-row ' + side;
+      row.innerHTML = `
+        <div class="level-bar" style="width:${pct}%"></div>
+        <span class="level-price">${Number(l.price).toFixed(2)}</span>
+        <span class="level-qty">${l.totalQuantity}</span>
+      `;
+      container.appendChild(row);
+    });
+  }
+
+  async function refreshOrderBook() {
+    try {
+      const res = await fetch(`${API}/api/orderbook/${currentSymbol}?depth=8`);
+      const data = await res.json();
+      renderLevels(bidLevels, data.bids, 'bid');
+      renderLevels(askLevels, data.asks, 'ask');
+
+      if (data.bids.length && data.asks.length) {
+        const bestBid = Number(data.bids[0].price);
+        const bestAsk = Number(data.asks[0].price);
+        const spread = (bestAsk - bestBid).toFixed(2);
+        spreadInfo.innerHTML = `Best Bid <b>${bestBid.toFixed(2)}</b> &nbsp;/&nbsp; Best Ask <b>${bestAsk.toFixed(2)}</b> &nbsp;·&nbsp; Spread <b>${spread}</b>`;
+      } else {
+        spreadInfo.textContent = 'Not enough depth to compute spread';
+      }
+    } catch (e) { /* server may be briefly unreachable, ignore */ }
+  }
+
+  async function refreshTrades() {
+    try {
+      const res = await fetch(`${API}/api/trades/${currentSymbol}`);
+      const data = await res.json();
+      tradeCount.textContent = data.length + ' trade' + (data.length === 1 ? '' : 's');
+
+      if (data.length === 0) {
+        tradeTape.innerHTML = '<div class="empty-book">No trades yet</div>';
+        return;
+      }
+
+      // data comes newest-first from the API already
+      tradeTape.innerHTML = '';
+      data.forEach(t => {
+        const row = document.createElement('div');
+        row.className = 'trade-row';
+        const time = new Date(t.executedAt).toLocaleTimeString();
+        row.innerHTML = `
+          <div>
+            <div class="trade-price">${Number(t.price).toFixed(2)} <span style="color:var(--muted); font-weight:400;">× ${t.quantity}</span></div>
+            <div class="trade-traders"><span class="buyer">${t.buyTraderId}</span> bought from <span class="seller">${t.sellTraderId}</span></div>
+          </div>
+          <span class="trade-meta">${time}</span>
+        `;
+        tradeTape.appendChild(row);
+      });
+    } catch (e) { /* ignore transient errors */ }
+  }
+
+  function refreshAll() {
+    refreshOrderBook();
+    refreshTrades();
+  }
+
+  refreshAll();
+  setInterval(refreshAll, 2000);
+</script>
+
+</body>
+</html>
